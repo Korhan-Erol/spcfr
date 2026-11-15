@@ -23,6 +23,16 @@ export interface StarCatalogEntry {
   mas: string;
   /** Seeded spectral curve variation (0.5..2) */
   spectralSeed: number;
+  /**
+   * Proper motion magnitude in arcsec/yr — drives the target's displacement
+   * between survey epochs (optional; the backend may refine this).
+   */
+  motionArcsecPerYr?: number;
+  /**
+   * Fractional brightness change between epochs (0..1) — drives the A−B
+   * difference signal for variable targets.
+   */
+  variability?: number;
 }
 
 export interface PlanetXCandidate {
