@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/layout/SiteFooter";
 import { InfoModal } from "@/components/layout/InfoModal";
 import { createAnimationClock } from "@/hooks/useAnimationClock";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { useUrlStateSync } from "@/hooks/useUrlStateSync";
 import { EpochComparison } from "./left/EpochComparison";
 import { DetectionPanel } from "./left/DetectionPanel";
 import { StarList } from "./left/StarList";
@@ -15,13 +16,22 @@ import { BandGrid } from "./right/BandGrid";
 import { DataTracker } from "./right/DataTracker";
 import { PlanetXPanel } from "./bottom/PlanetXPanel";
 
-/** 3-column interactive dashboard shell. */
-export function Dashboard() {
+type RawParams = Record<string, string | string[] | undefined>;
+
+interface DashboardProps {
+  /** Query-string params forwarded by the server page (shareable view state). */
+  urlParams: RawParams;
+}
+
+/** 3-column interactive dashboard shell (chrome-less in `?embed=1` mode). */
+export function Dashboard({ urlParams }: DashboardProps) {
+  useUrlStateSync(urlParams);
   const clock = useMemo(() => createAnimationClock(), []);
   const [modalSection, setModalSection] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState("map");
   const data = useDashboardStore((s) => s.data);
   const source = useDashboardStore((s) => s.source);
+  const embed = useDashboardStore((s) => s.embed);
   const loadData = useDashboardStore((s) => s.loadData);
 
   // Load the observatory snapshot once on mount (guard against StrictMode
@@ -46,11 +56,13 @@ export function Dashboard() {
           "radial-gradient(ellipse at 50% 0%, rgba(30, 52, 74, 0.22) 0%, transparent 65%), linear-gradient(180deg, #0b1017 0%, #090d12 100%)",
       }}
     >
-      <SiteHeader
-        activeSection={activeSection}
-        onNavigate={handleNavigate}
-        dataSource={source}
-      />
+      {!embed && (
+        <SiteHeader
+          activeSection={activeSection}
+          onNavigate={handleNavigate}
+          dataSource={source}
+        />
+      )}
 
       {!data ? (
         <main className="flex flex-1 items-center justify-center p-10">
@@ -105,7 +117,7 @@ export function Dashboard() {
 
           <div className="flex flex-col gap-2 px-3 pb-2.5">
             <PlanetXPanel clock={clock} />
-            <SiteFooter />
+            {!embed && <SiteFooter />}
           </div>
         </>
       )}
