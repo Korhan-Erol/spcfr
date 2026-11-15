@@ -1,6 +1,6 @@
 "use client";
 
-import { BAND_COLS, BAND_COUNT, BAND_ROWS, bandWavelength } from "@/lib/constants/bands";
+import { BAND_COLS, BAND_COUNT, bandWavelength } from "@/lib/constants/bands";
 import { useDashboardStore } from "@/store/dashboardStore";
 
 /** Background color for a band cell, mirroring the original visual design. */
@@ -38,7 +38,9 @@ export function BandGrid() {
         key={band}
         type="button"
         title={`Band ${band} (${bandWavelength(band).toFixed(2)} μm)`}
-        className={`aspect-square cursor-pointer rounded-[1.5px] border border-white/[0.05] transition-[transform,border-color,box-shadow] duration-100 hover:z-[2] hover:scale-[1.16] hover:border-white ${
+        aria-label={`Band ${band}, ${bandWavelength(band).toFixed(2)} μm`}
+        aria-pressed={selected}
+        className={`aspect-square cursor-pointer rounded-[1.5px] border border-white/[0.05] transition-[transform,border-color,box-shadow] duration-100 hover:z-[2] hover:scale-[1.16] hover:border-white focus:outline-none focus-visible:z-[2] focus-visible:scale-[1.16] focus-visible:border-cyan-bright focus-visible:shadow-[0_0_6px_var(--color-cyan-bright)] ${
           selected ? "border-white shadow-[0_0_6px_var(--color-cyan-bright)]" : ""
         }`}
         style={{ background: bandCellColor(row, col) }}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAnimationClock, type AnimationClock } from "@/hooks/useAnimationClock";
+import { prepareCanvas } from "@/lib/utils/canvas";
 import { mulberry32 } from "@/lib/utils/random";
 
 interface MiniStarfieldProps {
@@ -15,19 +16,30 @@ interface MiniStarfieldProps {
    */
   shiftTo?: number;
   clock?: AnimationClock;
+  /**
+   * When the animation stops while this prop is true (i.e. playback was
+   * paused, not the card deselected), the canvas holds the last animated
+   * position instead of snapping back to `shiftX`.
+   */
+  holdOnPause?: boolean;
   className?: string;
 }
 
+/** Design-space size; the canvas is stretched to its CSS box. */
 const W = 160;
 const H = 92;
 const TARGET_Y = 46;
 
 function drawStarfield(canvas: HTMLCanvasElement, seed: number, shiftX: number) {
+  const dims = prepareCanvas(canvas);
+  if (!dims) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  canvas.width = W;
-  canvas.height = H;
+  // Draw in the W×H design space; the non-uniform scale reproduces the
+  // CSS-stretch of the fixed-size backing store, just DPR-sharp.
+  ctx.scale(dims.width / W, dims.height / H);
+
   ctx.fillStyle = "#070b10";
   ctx.fillRect(0, 0, W, H);
 
@@ -54,16 +66,27 @@ function drawStarfield(canvas: HTMLCanvasElement, seed: number, shiftX: number) 
  * Deterministic starfield for epoch comparison cards. When animated, the
  * target star slides back and forth between the A and B frame positions.
  */
-export function MiniStarfield({ seed, shiftX = 0, shiftTo, clock, className }: MiniStarfieldProps) {
+export function MiniStarfield({
+  seed,
+  shiftX = 0,
+  shiftTo,
+  clock,
+  holdOnPause = false,
+  className,
+}: MiniStarfieldProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  /** Most recent animated position; null until the card has animated. */
+  const lastShiftRef = useRef<number | null>(null);
   const animating = typeof shiftTo === "number" && clock != null;
 
   // Static drawing (non-animated cards)
   useEffect(() => {
     if (animating) return;
     const canvas = canvasRef.current;
-    if (canvas) drawStarfield(canvas, seed, shiftX);
-  }, [seed, shiftX, shiftTo, clock, animating]);
+    if (!canvas) return;
+    const hold = holdOnPause && lastShiftRef.current !== null;
+    drawStarfield(canvas, seed, hold ? (lastShiftRef.current as number) : shiftX);
+  }, [seed, shiftX, animating, holdOnPause]);
 
   // Animated drawing (active, playing card)
   useAnimationClock(clock, (time) => {
@@ -71,7 +94,9 @@ export function MiniStarfield({ seed, shiftX = 0, shiftTo, clock, className }: M
     const canvas = canvasRef.current;
     if (!canvas) return;
     const t = (Math.sin(time * 1.8) + 1) / 2;
-    drawStarfield(canvas, seed, shiftX + (shiftTo - shiftX) * t);
+    const shift = shiftX + (shiftTo - shiftX) * t;
+    lastShiftRef.current = shift;
+    drawStarfield(canvas, seed, shift);
   });
 
   return <canvas ref={canvasRef} className={className} aria-hidden="true" />;

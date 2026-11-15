@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useAnimationClock, type AnimationClock } from "@/hooks/useAnimationClock";
 import { useElementSize } from "@/hooks/useElementSize";
 import { prepareCanvas } from "@/lib/utils/canvas";
 
 interface OrbitDiagramProps {
   clock: AnimationClock;
-  selectedCandidateIdx: number;
+  /** Orbit ring to highlight, taken from the selected candidate's `orbitIdx`. */
+  selectedOrbitIdx: number;
 }
 
 const ORBITS = [
@@ -18,10 +19,10 @@ const ORBITS = [
 
 /**
  * Bottom Planet-X orbit diagram: three inclined orbits with a moving body
- * on each; the selected candidate's orbit is highlighted.
+ * on each; the selected candidate's orbit (its `orbitIdx`) is highlighted.
  */
-export function OrbitDiagram({ clock, selectedCandidateIdx }: OrbitDiagramProps) {
-  const { ref, size } = useElementSize<HTMLDivElement>();
+export function OrbitDiagram({ clock, selectedOrbitIdx }: OrbitDiagramProps) {
+  const { ref } = useElementSize<HTMLDivElement>();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useAnimationClock(clock, () => {
@@ -38,7 +39,7 @@ export function OrbitDiagram({ clock, selectedCandidateIdx }: OrbitDiagramProps)
     const cy = h * 0.54;
 
     ORBITS.forEach((orb, idx) => {
-      const isSel = idx === selectedCandidateIdx;
+      const isSel = idx === selectedOrbitIdx;
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(orb.rot);

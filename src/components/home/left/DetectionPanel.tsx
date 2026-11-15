@@ -28,6 +28,8 @@ export function DetectionPanel() {
           {MODES.map(({ mode, label }) => (
             <button
               key={mode}
+              type="button"
+              aria-pressed={diffMode === mode}
               className={`cursor-pointer rounded-[3px] border px-1.5 py-1.5 text-center text-[10px] font-medium tracking-[0.04em] transition-all duration-200 ${
                 diffMode === mode
                   ? "border-cyan bg-[#192b3c] text-cyan-bright shadow-[inset_0_0_8px_rgba(94,169,209,0.18)]"
@@ -40,6 +42,8 @@ export function DetectionPanel() {
           ))}
         </div>
         <button
+          type="button"
+          aria-pressed={diffMode === "anomalies"}
           className={`flex w-full cursor-pointer items-center justify-between rounded-[3px] border px-2.5 py-1.5 text-[10px] tracking-[0.04em] transition-all duration-200 ${
             diffMode === "anomalies"
               ? "border-cyan bg-[#1b2c3d] text-cyan-bright"

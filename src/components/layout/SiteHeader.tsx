@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NAV_SECTIONS } from "@/lib/constants/nav";
 
 interface SiteHeaderProps {
@@ -60,6 +60,37 @@ function NasaLogo() {
 
 export function SiteHeader({ activeSection, onNavigate, dataSource }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+
+  /* Close the mobile menu on outside click or Escape. */
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        !navRef.current?.contains(target) &&
+        !menuButtonRef.current?.contains(target)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   return (
     <header className="relative flex h-[62px] flex-shrink-0 items-center justify-between border-b border-border-subtle bg-gradient-to-b from-[#0f161f] to-[#0c1219] px-[22px]">
@@ -89,14 +120,20 @@ export function SiteHeader({ activeSection, onNavigate, dataSource }: SiteHeader
       </div>
 
       <button
+        ref={menuButtonRef}
         className="rounded border border-border-panel bg-panel px-2.5 py-1.5 text-sm text-text-primary md:hidden"
-        aria-label="Menu"
+        type="button"
+        aria-label="Toggle navigation menu"
+        aria-expanded={menuOpen}
+        aria-controls="site-nav"
         onClick={() => setMenuOpen((open) => !open)}
       >
         ☰
       </button>
 
       <nav
+        ref={navRef}
+        id="site-nav"
         className={`absolute left-0 right-0 top-[62px] z-50 flex-col gap-2.5 border-b border-border-panel bg-[#0f161f] px-5 py-3 md:static md:z-auto md:flex md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:px-0 md:py-0 ${
           menuOpen ? "flex" : "hidden"
         }`}

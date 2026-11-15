@@ -14,7 +14,8 @@ const PAD_BOTTOM = 24;
 
 /**
  * Spectral analysis chart: 102-band flux curves with a selectable band cursor.
- * Band hover updates the tooltip overlay.
+ * Mouse hover previews a band (tooltip + cursor); clicking or touch-scrubbing
+ * selects it (updates the shared store, atlas overlay and BandGrid).
  */
 export function SpectralChart() {
   const { ref: wrapRef, size } = useElementSize<HTMLDivElement>();
@@ -25,6 +26,15 @@ export function SpectralChart() {
     s.data?.stars.find((st) => st.id === s.selectedStarId) ?? null,
   );
   const selectedBand = useDashboardStore((s) => s.selectedBand);
+  const setSelectedBand = useDashboardStore((s) => s.setSelectedBand);
+
+  /** Map a pointer event to the band under the cursor (clamped to 1..102). */
+  const bandFromPointer = (e: React.PointerEvent<HTMLCanvasElement>): number => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = clamp01((x - PAD_LEFT) / (rect.width - PAD_LEFT - PAD_RIGHT));
+    return Math.round(1 + ratio * 101);
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -137,14 +147,17 @@ export function SpectralChart() {
     <div ref={wrapRef} className="relative h-[155px] overflow-hidden rounded-[2px] border border-[#1e2a38] bg-[#0c1219]">
       <canvas
         ref={canvasRef}
-        className="h-full w-full cursor-crosshair"
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const ratio = clamp01((x - PAD_LEFT) / (rect.width - PAD_LEFT - PAD_RIGHT));
-          setHoverBand(Math.round(1 + ratio * 101));
+        className="h-full w-full cursor-crosshair touch-none"
+        onPointerMove={(e) => {
+          if (e.pointerType === "mouse") {
+            setHoverBand(bandFromPointer(e));
+            return;
+          }
+          // Touch/pen: scrub-selects while the pointer is down.
+          if (e.buttons > 0 || e.pressure > 0) setSelectedBand(bandFromPointer(e));
         }}
-        onMouseLeave={() => setHoverBand(null)}
+        onPointerDown={(e) => setSelectedBand(bandFromPointer(e))}
+        onPointerLeave={() => setHoverBand(null)}
       />
       <div className="pointer-events-none absolute top-1.5 right-2 rounded-[2px] border border-[#2b3f54] bg-[rgba(12,18,25,0.85)] px-1.5 py-0.5 font-mono text-[9px] text-cyan-bright">
         BAND {activeBand} • {bandWavelength(activeBand).toFixed(2)} μm •{" "}

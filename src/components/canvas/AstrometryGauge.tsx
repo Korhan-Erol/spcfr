@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { prepareCanvas } from "@/lib/utils/canvas";
 
 interface AstrometryGaugeProps {
   /** Seeded variation used to animate the bar fill. */
   spectralSeed: number;
 }
+
+/** Design-space size; the canvas is stretched to its CSS box. */
+const W = 216;
+const H = 108;
 
 /**
  * Astrometry widget: a polar drift circle plus a vertical flux/parallax bar.
@@ -16,12 +21,13 @@ export function AstrometryGauge({ spectralSeed }: AstrometryGaugeProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dims = prepareCanvas(canvas);
+    if (!dims) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = 216;
-    canvas.height = 108;
-    ctx.clearRect(0, 0, 216, 108);
+    ctx.scale(dims.width / W, dims.height / H);
+    ctx.clearRect(0, 0, W, H);
 
     // Left polar circle
     const cx = 64;

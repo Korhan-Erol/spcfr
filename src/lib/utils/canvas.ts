@@ -34,7 +34,3 @@ export function prepareCanvas(
   ctx.clearRect(0, 0, width, height);
   return { width, height };
 }
-
-export function getCtx(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
-  return canvas.getContext("2d");
-}

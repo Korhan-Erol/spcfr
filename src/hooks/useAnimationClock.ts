@@ -86,6 +86,5 @@ export function useAnimationClock(
       cancelAnimationFrame(rafId);
       detach();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock]);
 }

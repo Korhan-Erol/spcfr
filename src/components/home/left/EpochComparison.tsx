@@ -25,11 +25,14 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
     setPlaying(true);
   };
 
-  const handleTogglePlay = (event: React.MouseEvent, epoch: number) => {
-    event.stopPropagation();
+  const handleTogglePlay = (epoch: number) => {
     if (epoch === activeEpoch) {
       setPlaying((value) => !value);
+      return;
     }
+    // Activating from an inactive card: select it and start playback.
+    setEpoch(epoch);
+    setPlaying(true);
   };
 
   return (
@@ -45,7 +48,7 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
 
       <div className="px-3 py-2.5">
         <p className="mb-2.5 text-[10px] leading-[1.35] text-text-muted">
-          102 bands of near-infrared data mapped every 6 months by NASA's SPHEREx telescope.
+          102 bands of near-infrared data mapped every 6 months by NASA&apos;s SPHEREx telescope.
         </p>
 
         <div className="grid grid-cols-3 gap-1.5">
@@ -56,51 +59,52 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
             return (
               <div
                 key={card.epoch}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isActive}
-                aria-label={`${card.label} — ${isActive ? (playing ? "playing" : "paused") : "click to play"}`}
-                className={`cursor-pointer overflow-hidden rounded-[2px] border bg-[#0d131a] transition-[border-color,box-shadow] duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-bright ${
+                className={`overflow-hidden rounded-[2px] border bg-[#0d131a] transition-[border-color,box-shadow] duration-200 has-[button:focus-visible]:ring-1 has-[button:focus-visible]:ring-cyan-bright ${
                   isActive
                     ? "border-cyan shadow-[0_0_8px_rgba(94,169,209,0.2)]"
                     : "border-[#263445] hover:border-cyan"
                 }`}
-                onClick={() => handleCardClick(card.epoch)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleCardClick(card.epoch);
-                  }
-                }}
               >
                 <div className="flex flex-col">
-                  <MiniStarfield
-                    seed={card.seedA}
-                    shiftX={card.shiftA}
-                    shiftTo={isAnimating ? card.shiftB : undefined}
-                    clock={isAnimating ? clock : undefined}
-                    className="h-[46px] w-full"
-                  />
-                  <div className="h-px bg-[#22303f]" />
-                  <MiniStarfield
-                    seed={card.seedB}
-                    shiftX={card.shiftB}
-                    shiftTo={isAnimating ? card.shiftA : undefined}
-                    clock={isAnimating ? clock : undefined}
-                    className="h-[46px] w-full"
-                  />
+                  {/* Real button so keyboard users can select the epoch without
+                      nesting interactive elements inside a role="button" card. */}
+                  <button
+                    type="button"
+                    aria-pressed={isActive}
+                    aria-label={`${card.label} — ${isActive ? (playing ? "playing" : "paused") : "select and play"}`}
+                    className="w-full cursor-pointer border-0 bg-transparent p-0 text-left focus:outline-none"
+                    onClick={() => handleCardClick(card.epoch)}
+                  >
+                    <MiniStarfield
+                      seed={card.seedA}
+                      shiftX={card.shiftA}
+                      shiftTo={isAnimating ? card.shiftB : undefined}
+                      clock={isAnimating ? clock : undefined}
+                      holdOnPause={isActive}
+                      className="h-[46px] w-full"
+                    />
+                    <div className="h-px bg-[#22303f]" />
+                    <MiniStarfield
+                      seed={card.seedB}
+                      shiftX={card.shiftB}
+                      shiftTo={isAnimating ? card.shiftA : undefined}
+                      clock={isAnimating ? clock : undefined}
+                      holdOnPause={isActive}
+                      className="h-[46px] w-full"
+                    />
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-1 border-t border-[#1f2b38] bg-[#131c26] px-1 py-1 text-[8.5px] whitespace-nowrap text-[#9cb0c4]">
                   <button
                     type="button"
-                    aria-label={isActive && playing ? "Pause time-lapse" : "Play time-lapse"}
+                    aria-label={isActive && playing ? `Pause ${card.label} time-lapse` : `Play ${card.label} time-lapse`}
                     className={`flex h-3.5 w-3.5 cursor-pointer items-center justify-center rounded-full border text-[7px] leading-none transition-colors ${
                       isActive && playing
                         ? "animate-pulse border-cyan-bright text-cyan-bright"
                         : "border-[#3a4e63] text-[#9cb0c4] hover:border-cyan-bright hover:text-cyan-bright"
                     }`}
-                    onClick={(e) => handleTogglePlay(e, card.epoch)}
+                    onClick={() => handleTogglePlay(card.epoch)}
                   >
                     {isActive && playing ? "❚❚" : "▶"}
                   </button>

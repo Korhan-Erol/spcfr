@@ -17,6 +17,11 @@ export function PlanetXPanel({ clock }: PlanetXPanelProps) {
     s.data?.stars.find((st) => st.id === s.selectedStarId) ?? null,
   );
 
+  // The API contract says `orbitIdx` identifies which orbit ring to highlight
+  // (see src/lib/api/types.ts); never fall back to the list position.
+  const selectedCandidate = candidates[selectedCandidateIdx];
+  const selectedOrbitIdx = selectedCandidate ? selectedCandidate.orbitIdx : -1;
+
   return (
     <section
       className="grid items-center gap-5 rounded-[3px] border border-border-panel px-3.5 py-2.5"
@@ -29,7 +34,7 @@ export function PlanetXPanel({ clock }: PlanetXPanelProps) {
       <div>
         <div className="mb-1.5">
           <div className="text-[11.5px] font-medium text-[#dbe6f0]">
-            {star ? `${star.name} * X` : "Planet X Candidates"}
+            {star ? `${star.name} * X` : "PLANET X"}
           </div>
           <div className="text-[9.5px] text-text-muted">Planet X Candidates</div>
         </div>
@@ -40,6 +45,8 @@ export function PlanetXPanel({ clock }: PlanetXPanelProps) {
             return (
               <button
                 key={candidate.id}
+                type="button"
+                aria-pressed={active}
                 className={`flex cursor-pointer items-center justify-between rounded-[2px] border px-2 py-1 text-[10px] transition-all duration-150 ${
                   active
                     ? "border-cyan bg-[rgba(45,76,106,0.42)]"
@@ -64,7 +71,7 @@ export function PlanetXPanel({ clock }: PlanetXPanelProps) {
       </div>
 
       <div className="relative flex h-[104px] items-center justify-center">
-        <OrbitDiagram clock={clock} selectedCandidateIdx={selectedCandidateIdx} />
+        <OrbitDiagram clock={clock} selectedOrbitIdx={selectedOrbitIdx} />
       </div>
     </section>
   );
