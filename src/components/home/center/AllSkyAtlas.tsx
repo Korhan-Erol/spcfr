@@ -495,10 +495,7 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
   };
 
   const narrow = size.width > 0 && size.width < 640;
-  const selectedStar = stars.find((s) => s.id === selectedStarId);
 
-  const calloutLeft = narrow ? "12px" : "min(72%, calc(50% + 22px))";
-  const calloutTop = narrow ? "12px" : "min(68%, calc(50% - 12px))";
   const btnLeft = narrow ? "12px" : "min(72%, calc(50% + 20px))";
   const btnTop = narrow ? undefined : "min(82%, calc(50% + 18px))";
 
@@ -538,26 +535,6 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
           ref={orbitDotRef}
           className="pointer-events-none absolute z-[4] h-2.5 w-2.5 rounded-full bg-[#9ce4ff] opacity-0 shadow-[0_0_8px_var(--color-cyan-bright)] transition-opacity duration-150"
         />
-
-        {/* Selected star callout */}
-        {selectedStar && (
-          <div
-            className="pointer-events-none absolute z-[5] min-w-[185px] rounded-[3px] border border-[#3c5670] bg-[rgba(15,22,31,0.9)] px-2.5 py-2 shadow-[0_6px_20px_rgba(0,0,0,0.55)] backdrop-blur-sm"
-            style={{ left: calloutLeft, top: calloutTop }}
-          >
-            <div className="mb-0.5 text-[10.5px] font-semibold tracking-[0.06em] text-[#e9f2fa]">
-              {selectedStar.name.toUpperCase()} SELECTED
-            </div>
-            <div className="font-mono text-[9.5px] leading-[1.45] text-[#b4c6d8]">
-              RA: {selectedStar.ra} / DEC: {selectedStar.dec}
-              <br />
-              DISTANCE: {selectedStar.distance} • MAG: {selectedStar.magnitude}
-            </div>
-            <div className="mt-0.5 text-center font-mono text-[9.5px] text-cyan">
-              {selectedStar.delta}
-            </div>
-          </div>
-        )}
 
         <button
           className={`absolute z-[6] cursor-pointer rounded-[3px] border px-2.5 py-1 text-[10px] transition-all duration-200 ${

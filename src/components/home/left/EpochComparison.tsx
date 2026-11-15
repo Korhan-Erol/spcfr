@@ -48,7 +48,7 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
 
       <div className="px-3 py-2.5">
         <p className="mb-2.5 text-[10px] leading-[1.35] text-text-muted">
-          102 bands of near-infrared data mapped every 6 months by NASA&apos;s SPHEREx telescope.
+          102 bands of near-infrared data mapped every 6 months by the SPHEREx telescope.
         </p>
 
         <div className="grid grid-cols-3 gap-1.5">

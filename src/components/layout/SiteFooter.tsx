@@ -1,5 +1,5 @@
 export function SiteFooter() {
-  const items = ["SPHEREX MISSION", "NASA JPL", "PLANET X PORTAL", "CALTECH", "2026"];
+  const items = ["SPECTREX", "SPHEREX MISSION", "PLANET X PORTAL", "CALTECH", "2026"];
 
   return (
     <footer className="flex items-center justify-center gap-3.5 px-3.5 pb-1 pt-1.5 text-[10px] tracking-[0.14em] text-[#6f8296]">

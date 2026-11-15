@@ -15,9 +15,9 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SPHEREx SKY HUNTER — A Citizen Science Portal for Transient & Planet X Hunting",
+  title: "SPECTREX",
   description:
-    "Citizen science portal: hunt transients and Planet X across NASA SPHEREx all-sky spectral data.",
+    "Citizen science portal: hunt transients and Planet X across the SPHEREx all-sky spectral survey.",
 };
 
 export default function RootLayout({

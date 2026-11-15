@@ -18,7 +18,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "SPECTRAL EXPLORER",
     title: "SPECTRAL EXPLORER — 102 NIR BANDS",
     body:
-      "NASA's SPHEREx space telescope scans the near-infrared spectrum between 0.75 and 5.0 microns in 102 separate wavelength bands. Use the multi-band selector in the right panel to activate the bands you are interested in and inspect the flux variations on the all-sky map.",
+      "The SPHEREx space telescope scans the near-infrared spectrum between 0.75 and 5.0 microns in 102 separate wavelength bands. Use the multi-band selector in the right panel to activate the bands you are interested in and inspect the flux variations on the all-sky map.",
   },
   {
     id: "research",
@@ -30,16 +30,16 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "about",
     label: "ABOUT",
-    title: "ABOUT SPHEREx SKY HUNTER",
+    title: "ABOUT SPECTREX",
     body:
-      "SPHEREx Sky Hunter is an interactive analysis portal designed for citizen scientists to examine moving celestial objects and spectral anomalies in real time using NASA/JPL and Caltech data.",
+      "Spectrex is an interactive analysis portal designed for citizen scientists to examine moving celestial objects and spectral anomalies in real time using the SPHEREx all-sky survey.",
   },
   {
     id: "contact",
     label: "CONTACT",
     title: "CONTACT — MISSION SUPPORT",
     body:
-      "For data access and science collaborations: spherex-citizen@jpl.nasa.gov • Pasadena, CA • Caltech / NASA Jet Propulsion Laboratory.",
+      "For data access and science collaborations: contact@spectrex.dev • Pasadena, CA.",
   },
 ];
 

@@ -8,7 +8,7 @@ import type { ObservatorySnapshot } from "./types";
 export const MOCK_SNAPSHOT: ObservatorySnapshot = {
   mission: {
     name: "SPHEREx",
-    agency: "NASA JPL / Caltech",
+    agency: "SPHEREx / Caltech",
     instrument: "SPECTRO-PHOTOMETER",
     bandCount: 102,
     wavelengthRange: [0.75, 5.0],
