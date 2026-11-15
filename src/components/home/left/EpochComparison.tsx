@@ -2,23 +2,47 @@
 
 import { useState } from "react";
 import { MiniStarfield } from "@/components/canvas/MiniStarfield";
+import { TargetDiffCanvas } from "@/components/canvas/TargetDiffCanvas";
 import type { AnimationClock } from "@/hooks/useAnimationClock";
 import { EPOCHS } from "@/lib/constants/epochs";
+import { clamp } from "@/lib/utils/random";
 import { useDashboardStore } from "@/store/dashboardStore";
 
 interface EpochComparisonProps {
   clock: AnimationClock;
 }
 
+/** What the epoch cards render: the A/B pair or the subtracted residual. */
+type CardView = "ab" | "diff";
+
+const VIEWS: { id: CardView; label: string }[] = [
+  { id: "ab", label: "A | B FRAMES" },
+  { id: "diff", label: "A−B SUBTRACTION" },
+];
+
+/** Motion between A and B, scaled to the card's design space (px). */
+const motionShiftPx = (arcsecPerYr: number | undefined): number =>
+  clamp((arcsecPerYr ?? 3) * 0.8, 1, 9);
+
 /**
  * Epoch comparison time-lapse: A/B frame pairs per 6-month epoch.
  * Clicking a card selects it and plays the A↔B time-lapse animation;
  * the play/pause control toggles playback on the selected card.
+ * The view toggle switches the cards between the raw A/B pair and the
+ * image-subtraction residual (|A−B|), driven by the selected target.
  */
 export function EpochComparison({ clock }: EpochComparisonProps) {
   const activeEpoch = useDashboardStore((s) => s.activeEpoch);
   const setEpoch = useDashboardStore((s) => s.setEpoch);
+  const selectedStarId = useDashboardStore((s) => s.selectedStarId);
+  const data = useDashboardStore((s) => s.data);
   const [playing, setPlaying] = useState(false);
+  const [view, setView] = useState<CardView>("ab");
+
+  /** Selected target drives the A−B residual: motion + brightness change. */
+  const star = data?.stars.find((st) => st.id === selectedStarId) ?? null;
+  const shiftB = motionShiftPx(star?.motionArcsecPerYr);
+  const brightnessB = 1 - (star?.variability ?? 0.1) * 0.85;
 
   const handleCardClick = (epoch: number) => {
     setEpoch(epoch);
@@ -51,6 +75,24 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
           102 bands of near-infrared data mapped every 6 months by the SPHEREx telescope.
         </p>
 
+        <div className="mb-2 grid grid-cols-2 gap-1.5">
+          {VIEWS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={view === id}
+              className={`cursor-pointer rounded-[3px] border px-1.5 py-1 text-center text-[9px] font-medium tracking-[0.04em] transition-all duration-200 ${
+                view === id
+                  ? "border-cyan bg-[#192b3c] text-cyan-bright shadow-[inset_0_0_8px_rgba(94,169,209,0.18)]"
+                  : "border-[#2e4054] bg-[#15202b] text-[#c2d1e0] hover:border-[#4d789c] hover:bg-[#1b2938] hover:text-white"
+              }`}
+              onClick={() => setView(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-3 gap-1.5">
           {EPOCHS.map((card) => {
             const isActive = card.epoch === activeEpoch;
@@ -75,23 +117,39 @@ export function EpochComparison({ clock }: EpochComparisonProps) {
                     className="w-full cursor-pointer border-0 bg-transparent p-0 text-left focus:outline-none"
                     onClick={() => handleCardClick(card.epoch)}
                   >
-                    <MiniStarfield
-                      seed={card.seedA}
-                      shiftX={card.shiftA}
-                      shiftTo={isAnimating ? card.shiftB : undefined}
-                      clock={isAnimating ? clock : undefined}
-                      holdOnPause={isActive}
-                      className="h-[46px] w-full"
-                    />
-                    <div className="h-px bg-[#22303f]" />
-                    <MiniStarfield
-                      seed={card.seedB}
-                      shiftX={card.shiftB}
-                      shiftTo={isAnimating ? card.shiftA : undefined}
-                      clock={isAnimating ? clock : undefined}
-                      holdOnPause={isActive}
-                      className="h-[46px] w-full"
-                    />
+                    {view === "ab" ? (
+                      <>
+                        <MiniStarfield
+                          seed={card.seedA}
+                          shiftX={card.shiftA}
+                          shiftTo={isAnimating ? card.shiftB : undefined}
+                          clock={isAnimating ? clock : undefined}
+                          holdOnPause={isActive}
+                          className="h-[46px] w-full"
+                        />
+                        <div className="h-px bg-[#22303f]" />
+                        <MiniStarfield
+                          seed={card.seedB}
+                          shiftX={card.shiftB}
+                          shiftTo={isAnimating ? card.shiftA : undefined}
+                          clock={isAnimating ? clock : undefined}
+                          holdOnPause={isActive}
+                          className="h-[46px] w-full"
+                        />
+                      </>
+                    ) : (
+                      /* Subtraction residual — field stars cancel, the selected
+                         target's motion + brightness change remain. */
+                      <TargetDiffCanvas
+                        frameA={{ seed: card.seedA, targetX: 80, brightness: 1 }}
+                        frameB={{
+                          seed: card.seedA,
+                          targetX: 80 + shiftB,
+                          brightness: brightnessB,
+                        }}
+                        className="h-[93px] w-full"
+                      />
+                    )}
                   </button>
                 </div>
 

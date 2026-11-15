@@ -2,6 +2,13 @@ import { create } from "zustand";
 import { getObservatorySnapshot } from "@/lib/api/endpoints";
 import { fetchMockSnapshot } from "@/lib/api/mock";
 import type { DataSource, DiffMode, ObservatorySnapshot } from "@/lib/api/types";
+import type { UrlViewState } from "@/lib/url/viewState";
+import { VIEW_DEFAULTS } from "@/lib/url/viewState";
+
+interface SkyCenter {
+  ra: number;
+  dec: number;
+}
 
 interface DashboardState {
   /* --- data --- */
@@ -17,6 +24,15 @@ interface DashboardState {
   diffMode: DiffMode;
   selectedCandidateIdx: number;
 
+  /* --- shareable atlas view state --- */
+  viewCenter: SkyCenter | null;
+  viewFov: number | null;
+  /** True once the user deliberately changed the FoV (URL write gate). */
+  viewFovTouched: boolean;
+  embed: boolean;
+  /** True once the URL-provided state has been applied (write-back gate). */
+  urlHydrated: boolean;
+
   /* --- actions --- */
   loadData: () => Promise<void>;
   selectStar: (id: string) => void;
@@ -25,6 +41,10 @@ interface DashboardState {
   setEpoch: (epoch: number) => void;
   setDiffMode: (mode: DiffMode) => void;
   selectCandidate: (index: number) => void;
+  setViewCenter: (center: SkyCenter) => void;
+  /** Live FoV readback; `touched` gates the URL write-back. */
+  setViewFov: (fov: number, touched: boolean) => void;
+  hydrateFromUrl: (state: UrlViewState) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()((set, get) => ({
@@ -38,6 +58,12 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   activeEpoch: 0,
   diffMode: "diff",
   selectedCandidateIdx: 0,
+
+  viewCenter: null,
+  viewFov: null,
+  viewFovTouched: false,
+  embed: false,
+  urlHydrated: false,
 
   loadData: async () => {
     set({ source: "loading", loadError: null });
@@ -84,4 +110,29 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   setDiffMode: (mode) => set({ diffMode: mode }),
 
   selectCandidate: (index) => set({ selectedCandidateIdx: index }),
+
+  setViewCenter: (center) => set({ viewCenter: center }),
+
+  setViewFov: (fov, touched) => set({ viewFov: fov, viewFovTouched: touched }),
+
+  /** Applies URL-provided state once per page load (idempotent). */
+  hydrateFromUrl: (state) => {
+    if (get().urlHydrated) return;
+    set((current) => ({
+      urlHydrated: true,
+      embed: state.embed,
+      viewCenter:
+        state.ra !== null && state.dec !== null
+          ? { ra: state.ra, dec: state.dec }
+          : current.viewCenter,
+      viewFov: state.fov ?? current.viewFov,
+      viewFovTouched: state.fov !== null,
+      selectedBand: state.band ?? current.selectedBand,
+      selectedStarId:
+        state.star && state.star !== VIEW_DEFAULTS.star
+          ? state.star
+          : current.selectedStarId,
+      activeEpoch: state.epoch ?? current.activeEpoch,
+    }));
+  },
 }));

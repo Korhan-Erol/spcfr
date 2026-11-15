@@ -55,6 +55,9 @@ export function BandGrid() {
         <span className="text-[11.5px] font-medium uppercase tracking-[0.06em] text-[#cad6e2]">
           BAND MULTI-SELECTOR (1–102)
         </span>
+        <span className="font-mono text-[9px] tracking-wider text-text-muted">
+          6 ARRAYS × 17 BANDS
+        </span>
       </div>
       <div className="px-3 py-2.5">
         <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${BAND_COLS}, 1fr)` }}>

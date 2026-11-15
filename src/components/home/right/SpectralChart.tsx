@@ -75,15 +75,15 @@ export function SpectralChart() {
       ctx.fillText(label, PAD_LEFT - 4, PAD_TOP + (plotH * i) / 4 + 3);
     });
 
-    // X labels
+    // X labels: real band indices across the 102-band axis
     ctx.textAlign = "center";
-    ["0", "200", "400", "600", "800", "1004"].forEach((label, i) => {
+    ["1", "21", "41", "62", "82", "102"].forEach((label, i) => {
       ctx.fillText(label, PAD_LEFT + (plotW * i) / 5, h - 10);
     });
 
     ctx.fillStyle = "#8aa0b5";
     ctx.font = "8px Inter, sans-serif";
-    ctx.fillText("PALAX — 5.0 μm", PAD_LEFT + plotW / 2, h - 2);
+    ctx.fillText("0.75 — 5.0 μm", PAD_LEFT + plotW / 2, h - 2);
 
     if (!star) return;
     const seed = star.spectralSeed;
