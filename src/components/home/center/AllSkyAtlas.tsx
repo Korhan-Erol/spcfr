@@ -7,6 +7,8 @@ import { getEpochLabel } from "@/lib/constants/epochs";
 import { parseDecDMS, parseRAhms } from "@/lib/astronomy/coords";
 import { useDashboardStore } from "@/store/dashboardStore";
 import type { AladinInstance } from "@/types/aladin";
+import { AtlasControls } from "./AtlasControls";
+import { OverlayLayers } from "./OverlayLayers";
 
 /**
  * Aladin Lite runtimes, tried in order. All are ESM builds loaded at runtime:
@@ -202,8 +204,36 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
   const selectedBand = useDashboardStore((s) => s.selectedBand);
   const activeEpoch = useDashboardStore((s) => s.activeEpoch);
   const diffMode = useDashboardStore((s) => s.diffMode);
+  const viewFov = useDashboardStore((s) => s.viewFov);
   const setSelectedBand = useDashboardStore((s) => s.setSelectedBand);
   const selectStar = useDashboardStore((s) => s.selectStar);
+  const setViewCenter = useDashboardStore((s) => s.setViewCenter);
+  const setViewFov = useDashboardStore((s) => s.setViewFov);
+
+  /** View state when the atlas came up — user moves past these are shared to the URL. */
+  const initialCenterRef = useRef<{ ra: number; dec: number } | null>(null);
+  const initialFovRef = useRef<number | null>(null);
+  /** Last values pushed to the store (avoid per-frame store churn). */
+  const pushedCenterRef = useRef<{ ra: number; dec: number } | null>(null);
+  const pushedFovRef = useRef<number | null>(null);
+  /** Baseline is captured once the settled view is stable across frames. */
+  const baselineCapturedRef = useRef(false);
+  const baselineStabilityRef = useRef({ snapshot: "", stableFrames: 0 });
+  /** Debounce timer for baseline recapture after container resizes. */
+  const baselineTimerRef = useRef<number | null>(null);
+
+  /** Re-anchors the "user move" baseline to the current (settled) view. */
+  const captureViewBaseline = () => {
+    const im = imRef.current;
+    if (!im) return;
+    const [ra, dec] = im.getRaDec() ?? [NaN, NaN];
+    const [fovWidth] = im.getFov() ?? [NaN];
+    initialCenterRef.current = Number.isFinite(ra) ? { ra, dec } : null;
+    initialFovRef.current = Number.isFinite(fovWidth) ? fovWidth : null;
+    pushedCenterRef.current = null;
+    pushedFovRef.current = null;
+    baselineCapturedRef.current = true;
+  };
 
   /** Resolve each catalog star to J2000 degrees once. */
   const coords = useMemo(() => {
@@ -309,12 +339,38 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
         }
         imRef.current = im;
 
+        // Apply shareable URL state (ra/dec/fov); the "user move" baseline is
+        // anchored later, once the settled view is frame-stable — Aladin
+        // keeps adjusting its FoV while settling into the container size.
+        const urlState = useDashboardStore.getState();
+        if (urlState.viewCenter) {
+          im.gotoObject(`${urlState.viewCenter.ra} ${urlState.viewCenter.dec}`);
+        }
+        if (urlState.viewFov) {
+          im.setFov(urlState.viewFov);
+        }
+        baselineCapturedRef.current = false;
+        baselineStabilityRef.current = { snapshot: "", stableFrames: 0 };
+
         // Keep Aladin in sync with the container size (it only listens to
-        // window resize events by default).
+        // window resize events by default). Layout-driven FoV changes must
+        // not leak into the shareable URL, so the baseline is re-anchored
+        // (debounced) once the view settles after a resize.
         const container = el.parentElement;
         if (container && typeof ResizeObserver !== "undefined") {
           resizeObserver = new ResizeObserver(() => {
             window.dispatchEvent(new Event("resize"));
+            if (baselineTimerRef.current !== null) {
+              window.clearTimeout(baselineTimerRef.current);
+            }
+            baselineTimerRef.current = window.setTimeout(() => {
+              baselineTimerRef.current = null;
+              // Re-anchor only an already-anchored baseline; early captures
+              // wait for the frame-stable settling logic instead.
+              if (!cancelled && baselineCapturedRef.current) {
+                captureViewBaseline();
+              }
+            }, 600);
           });
           resizeObserver.observe(container);
         }
@@ -347,6 +403,10 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
 
     return () => {
       cancelled = true;
+      if (baselineTimerRef.current !== null) {
+        window.clearTimeout(baselineTimerRef.current);
+        baselineTimerRef.current = null;
+      }
       window.removeEventListener("aladin:tile-failure", onTileFailure);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
       resizeObserver?.disconnect();
@@ -405,11 +465,62 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
     }
   }, [selectedStarId, diffMode]);
 
-  /* ---- Per-frame projection: catalog markers ---- */
+  /* ---- Per-frame projection: catalog markers + view-state readback ---- */
   useAnimationClock(clock, () => {
     const im = imRef.current;
     const overlay = overlayRef.current;
     if (!im || !overlay) return;
+
+    /**
+     * Push atlas view state to the store (→ URL) once the user pans or
+     * zooms beyond the baseline. Reading per frame avoids relying on
+     * Aladin event plumbing; store writes are gated by deltas.
+     */
+    const fov = im.getFov()?.[0];
+    const center = im.getRaDec();
+    if (fov != null && Number.isFinite(fov) && center) {
+      // 1) Before the baseline exists, wait for the view to be stable —
+      //    Aladin keeps refining its FoV while settling after init/resize.
+      if (!baselineCapturedRef.current) {
+        const snapshot = `${fov.toFixed(2)}|${center[0].toFixed(3)}|${center[1].toFixed(3)}`;
+        const stability = baselineStabilityRef.current;
+        if (snapshot === stability.snapshot) {
+          stability.stableFrames += 1;
+          // ~30 stable frames (≈0.5 s) → anchor the baseline.
+          if (stability.stableFrames >= 30) captureViewBaseline();
+        } else {
+          stability.snapshot = snapshot;
+          stability.stableFrames = 0;
+        }
+      }
+
+      // 2) Baseline anchored: keep the live FoV on display, but only share
+      //    moves the user actually made to the URL.
+      if (baselineCapturedRef.current) {
+        const fovTouched =
+          initialFovRef.current !== null &&
+          Math.abs(fov - initialFovRef.current) > 0.5;
+        const centerTouched =
+          initialCenterRef.current !== null &&
+          Math.abs(center[0] - initialCenterRef.current.ra) +
+            Math.abs(center[1] - initialCenterRef.current.dec) >
+            0.02;
+        if (pushedFovRef.current === null || Math.abs(fov - pushedFovRef.current) > 0.05) {
+          pushedFovRef.current = fov;
+          setViewFov(Number(fov.toFixed(1)), fovTouched);
+        }
+        if (
+          centerTouched &&
+          (pushedCenterRef.current === null ||
+            Math.abs(center[0] - pushedCenterRef.current.ra) +
+              Math.abs(center[1] - pushedCenterRef.current.dec) >
+              0.01)
+        ) {
+          pushedCenterRef.current = { ra: center[0], dec: center[1] };
+          setViewCenter({ ra: center[0], dec: center[1] });
+        }
+      }
+    }
 
     const vw = overlay.clientWidth;
     const vh = overlay.clientHeight;
@@ -461,6 +572,15 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
   };
 
   const overlayOpacity = 0.25 + 0.75 * (selectedBand / 102);
+
+  /** Atlas controls: FoV + coordinate search, wired straight into Aladin. */
+  const atlasReady = status === "ready";
+  const handleSetFov = (deg: number) => {
+    imRef.current?.setFov(deg);
+  };
+  const handleGoto = (ra: number, dec: number) => {
+    imRef.current?.gotoObject(`${ra} ${dec}`);
+  };
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[3px] border border-border-panel bg-gradient-to-b from-[rgba(20,29,39,0.94)] to-[rgba(15,22,30,0.96)]">
@@ -533,6 +653,16 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
       </div>
 
       <div className="border-t border-border-subtle bg-[#0e141c] px-3.5 pb-2.5 pt-2.5">
+        <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <AtlasControls
+            fov={viewFov}
+            onSetFov={handleSetFov}
+            onGoto={handleGoto}
+            disabled={!atlasReady}
+          />
+          <OverlayLayers imRef={imRef} disabled={!atlasReady} />
+        </div>
+
         <div className="mb-2 flex items-center gap-2.5">
           <input
             type="range"
