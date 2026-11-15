@@ -6,21 +6,36 @@ import { useElementSize } from "@/hooks/useElementSize";
 import { bandWavelength } from "@/lib/constants/bands";
 import { getEpochLabel } from "@/lib/constants/epochs";
 import { parseDecDMS, parseRAhms } from "@/lib/astronomy/coords";
-import { loadScript, loadStylesheet } from "@/lib/utils/loadExternal";
 import { useDashboardStore } from "@/store/dashboardStore";
 import type { AladinInstance } from "@/types/aladin";
 
-const ALADIN_JS =
-  "https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.min.js";
-const ALADIN_CSS =
-  "https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/style/aladin.min.css";
-
+/**
+ * Aladin Lite runtimes, tried in order. All are ESM builds loaded at runtime:
+ *
+ * 1. Vendored copy — same-origin, pinned to the app version, and the one
+ *    place where vendor fixes are tracked (e.g. telemetry endpoints CDS
+ *    retired in Nov 2026).
+ * 2. Bundled npm package — same version, fallback if /vendor fails.
+ * 3. Official CDN copy on jsDelivr — last resort.
+ *
+ * v3 injects its own stylesheet, so no external CSS is loaded.
+ */
 const ALADIN_ESM_LOCAL = "/vendor/aladin/aladin.esm.js";
+const ALADIN_ESM_CDN =
+  "https://cdn.jsdelivr.net/npm/aladin-lite@3.9.2-beta/dist/aladin.js";
 
-/** DSS tile sources, tried in order (primary CDS server, then its mirror). */
+/**
+ * HiPS tile sources, tried in order.
+ *
+ * CDS decommissioned its legacy alasky/alaskybis DSS hosting in Nov 2026
+ * (see https://cds.unistra.fr/hips_available_20261109.html), so the survey
+ * now streams from official mirrors listed there. Both mirrors serve the
+ * `Norder{k}/Dir{d}/Npix{n}.jpg` layout that Aladin Lite v3 expects and
+ * ship `Access-Control-Allow-Origin: *`.
+ */
 const SURVEY_URLS = [
-  "https://alasky.cds.unistra.fr/DSS/DSSColor",
-  "https://alaskybis.cds.unistra.fr/DSS/DSSColor",
+  "https://skies.esac.esa.int/DSSColor", // ESA ESAC
+  "https://hips.china-vo.org/m/CDS_P_DSS2_color", // China-VO
 ] as const;
 
 /** Runtime options are identical for every survey; only the tile source moves. */
@@ -90,16 +105,14 @@ async function createAladinViewer(
 /**
  * Loads the Aladin Lite runtime.
  *
- * 1. Bundled npm package (`aladin-lite`) — primary source.
- * 2. Vendored local ESM copy (offline-safe fallback).
- * 3. Official CDN UMD bundle as a last resort.
+ * 1. Vendored ESM copy (same-origin, carries our vendor fixes).
+ * 2. Bundled npm package.
+ * 3. Official CDN ESM as a last resort (with retries).
  *
- * The stylesheet is best-effort: a failure must never block initialization.
+ * Every source is validated for the expected module shape; the first one
+ * that exposes the `init` promise wins.
  */
 async function loadAladinRuntime(): Promise<AladinModule> {
-  // Best-effort stylesheet (non-fatal).
-  loadStylesheet(ALADIN_CSS).catch(() => undefined);
-
   const asAladinModule = (maybe: unknown): AladinModule | null => {
     const candidate = maybe as Partial<AladinModule> | undefined;
     if (candidate && typeof candidate.init?.then === "function") {
@@ -108,33 +121,43 @@ async function loadAladinRuntime(): Promise<AladinModule> {
     return null;
   };
 
-  // 1) Bundled npm package.
+  let lastError: unknown = null;
+
+  // 1) Vendored local ESM copy.
+  try {
+    // webpackIgnore keeps this a real browser dynamic import of the
+    // same-origin URL instead of a webpack-resolved chunk.
+    const mod = await import(/* webpackIgnore: true */ ALADIN_ESM_LOCAL);
+    const AladinModule = asAladinModule(mod.default ?? mod);
+    if (AladinModule) return AladinModule;
+    lastError = new Error(
+      "Vendored Aladin Lite is loaded but has an unexpected module shape.",
+    );
+  } catch (error) {
+    lastError = error;
+  }
+
+  // 2) Bundled npm package.
   try {
     const mod = await import("aladin-lite");
     const AladinModule = asAladinModule(mod.default ?? mod);
     if (AladinModule) return AladinModule;
-  } catch {
-    // fall through
-  }
-
-  // 2) Vendored local ESM copy.
-  try {
-    const mod = await import(
-      /* webpackIgnore: true */ ALADIN_ESM_LOCAL
+    lastError = new Error(
+      "Bundled Aladin Lite is loaded but has an unexpected module shape.",
     );
-    const AladinModule = asAladinModule(mod.default ?? mod);
-    if (AladinModule) return AladinModule;
-  } catch {
-    // fall through
+  } catch (error) {
+    lastError = error;
   }
 
-  // 3) Official CDN UMD (with retries).
-  let lastError: unknown = null;
+  // 3) Official CDN ESM (with retries).
   for (let attempt = 1; attempt <= CDN_MAX_ATTEMPTS; attempt++) {
     try {
-      await loadScript(ALADIN_JS);
-      if (window.A) return window.A;
-      throw new Error("Aladin Lite global (window.A) not found");
+      const mod = await import(/* webpackIgnore: true */ ALADIN_ESM_CDN);
+      const AladinModule = asAladinModule(mod.default ?? mod);
+      if (AladinModule) return AladinModule;
+      throw new Error(
+        "CDN Aladin Lite is loaded but has an unexpected module shape.",
+      );
     } catch (error) {
       lastError = error;
       if (attempt < CDN_MAX_ATTEMPTS) {
@@ -232,8 +255,8 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
       if (network) {
         setStatus((current) => (current === "ready" ? current : "error"));
         setInitError(
-          "Could not stream sky tiles from the CDS survey server " +
-            "(alasky.cds.unistra.fr). Check your internet connection.",
+          "Could not stream sky tiles from the DSS mirrors " +
+            "(skies.esac.esa.int). Check your internet connection.",
         );
       }
     };
@@ -311,7 +334,16 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
           });
         });
 
-        if (!cancelled) setStatus("ready");
+        if (!cancelled) {
+          // Aladin's init leaks telemetry fetches to hosts CDS retired in
+          // Nov 2026 (its own guard swallows them now). A session that
+          // actually came up healthy must not keep that noise, so the
+          // failure counter restarts here; the offline badge then reflects
+          // only failures that happen while the atlas is running.
+          tileFailures = 0;
+          setTilesOffline(false);
+          setStatus("ready");
+        }
       } catch (error) {
         if (!cancelled) {
           setStatus((current) => (current === "ready" ? current : "error"));
@@ -479,7 +511,7 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
           ALADIN LITE — ALL-SKY ATLAS
         </span>
         <span className="font-mono text-[9px] tracking-wider text-text-muted">
-          {status === "ready" ? "DSS / CDS" : status.toUpperCase()}
+          {status === "ready" ? "DSS / ESA" : status.toUpperCase()}
         </span>
       </div>
 
@@ -545,7 +577,7 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
         {/* Tile-stream degraded notice (atlas itself stays usable) */}
         {tilesOffline && status === "ready" && (
           <div className="absolute left-1/2 top-2 z-[6] -translate-x-1/2 rounded-[3px] border border-[#7a5b34] bg-[rgba(46,34,14,0.92)] px-2 py-1 font-mono text-[9px] tracking-wider text-[#e8c07d]">
-            SKY TILE STREAM OFFLINE — CDS SERVER UNREACHABLE
+            SKY TILE STREAM OFFLINE — DSS MIRROR UNREACHABLE
           </div>
         )}
 
@@ -563,8 +595,8 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
             </span>
             <span className="max-w-[280px] text-[10px] text-text-muted">{initError}</span>
             <span className="text-[10px] text-text-muted">
-              Sky tiles stream from alasky.cds.unistra.fr — check the network
-              connection.
+              Sky tiles stream from the ESA DSS mirror (skies.esac.esa.int) —
+              check the network connection.
             </span>
             <button
               className="mt-1 cursor-pointer rounded-[3px] border border-[#364e66] bg-[rgba(19,28,38,0.9)] px-3 py-1 text-[10px] tracking-[0.08em] text-[#c7d6e6] transition-colors hover:border-cyan-bright hover:text-cyan-bright"
