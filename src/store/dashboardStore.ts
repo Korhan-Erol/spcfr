@@ -15,7 +15,6 @@ interface DashboardState {
   activeBands: number[];
   activeEpoch: number;
   diffMode: DiffMode;
-  orbitAnimActive: boolean;
   selectedCandidateIdx: number;
 
   /* --- actions --- */
@@ -25,7 +24,6 @@ interface DashboardState {
   toggleBand: (band: number) => void;
   setEpoch: (epoch: number) => void;
   setDiffMode: (mode: DiffMode) => void;
-  toggleOrbitAnimation: () => void;
   selectCandidate: (index: number) => void;
 }
 
@@ -39,7 +37,6 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   activeBands: Array.from({ length: 12 }, (_, i) => 86 + i),
   activeEpoch: 0,
   diffMode: "diff",
-  orbitAnimActive: false,
   selectedCandidateIdx: 0,
 
   loadData: async () => {
@@ -85,8 +82,6 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   setEpoch: (epoch) => set({ activeEpoch: epoch }),
 
   setDiffMode: (mode) => set({ diffMode: mode }),
-
-  toggleOrbitAnimation: () => set((s) => ({ orbitAnimActive: !s.orbitAnimActive })),
 
   selectCandidate: (index) => set({ selectedCandidateIdx: index }),
 }));

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimationClock, type AnimationClock } from "@/hooks/useAnimationClock";
-import { useElementSize } from "@/hooks/useElementSize";
 import { bandWavelength } from "@/lib/constants/bands";
 import { getEpochLabel } from "@/lib/constants/epochs";
 import { parseDecDMS, parseRAhms } from "@/lib/astronomy/coords";
@@ -180,16 +179,14 @@ interface SkyMarker {
 const MARKER_SELECT_DISTANCE_PX = 80;
 
 /**
- * All-sky atlas powered by Aladin Lite (CDS), replacing the previous
- * hand-rolled Mollweide canvas. The five catalog stars, selection ring,
- * diff-mode styling and the orbit animation are drawn as a lightweight
- * HTML overlay projected with `world2pix` — no Aladin object churn.
+ * All-sky atlas powered by Aladin Lite (CDS). The five catalog markers and
+ * their selection/diff-mode styling are drawn as a lightweight HTML overlay
+ * projected with `world2pix` — no Aladin object churn.
  */
 export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const aladinElRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
-  const orbitDotRef = useRef<HTMLDivElement | null>(null);
   const imRef = useRef<AladinInstance | null>(null);
   const markersRef = useRef<SkyMarker[]>([]);
 
@@ -205,12 +202,8 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
   const selectedBand = useDashboardStore((s) => s.selectedBand);
   const activeEpoch = useDashboardStore((s) => s.activeEpoch);
   const diffMode = useDashboardStore((s) => s.diffMode);
-  const orbitAnimActive = useDashboardStore((s) => s.orbitAnimActive);
   const setSelectedBand = useDashboardStore((s) => s.setSelectedBand);
   const selectStar = useDashboardStore((s) => s.selectStar);
-  const toggleOrbitAnimation = useDashboardStore((s) => s.toggleOrbitAnimation);
-
-  const { ref: sizeRef, size } = useElementSize<HTMLDivElement>();
 
   /** Resolve each catalog star to J2000 degrees once. */
   const coords = useMemo(() => {
@@ -412,8 +405,8 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
     }
   }, [selectedStarId, diffMode]);
 
-  /* ---- Per-frame projection: markers + orbit dot ---- */
-  useAnimationClock(clock, (time) => {
+  /* ---- Per-frame projection: catalog markers ---- */
+  useAnimationClock(clock, () => {
     const im = imRef.current;
     const overlay = overlayRef.current;
     if (!im || !overlay) return;
@@ -446,33 +439,6 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
       }
       if (!visible) marker.el.style.opacity = "0";
     }
-
-    const dot = orbitDotRef.current;
-    if (dot) {
-      if (orbitAnimActive) {
-        try {
-          const selected = stars.find((s) => s.id === selectedStarId);
-          const base = selected ? coords.get(selected.id) : undefined;
-          if (base) {
-            const t = time * 2.2;
-            const spreadDeg = 0.05;
-            const dra = (Math.cos(t) * spreadDeg) / Math.cos((base.dec * Math.PI) / 180);
-            const ddec = Math.sin(t) * spreadDeg * 0.55;
-            const point = im.world2pix(base.ra + dra, base.dec + ddec);
-            if (point) {
-              dot.style.transform = `translate(${point[0]}px, ${point[1]}px)`;
-              dot.style.opacity = "1";
-            } else {
-              dot.style.opacity = "0";
-            }
-          }
-        } catch {
-          dot.style.opacity = "0";
-        }
-      } else {
-        dot.style.opacity = "0";
-      }
-    }
   });
 
   /* ---- Click-to-select using last projected positions ---- */
@@ -493,11 +459,6 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
     }
     if (best) selectStar(best.id);
   };
-
-  const narrow = size.width > 0 && size.width < 640;
-
-  const btnLeft = narrow ? "12px" : "min(72%, calc(50% + 20px))";
-  const btnTop = narrow ? undefined : "min(82%, calc(50% + 18px))";
 
   const overlayOpacity = 0.25 + 0.75 * (selectedBand / 102);
 
@@ -523,33 +484,13 @@ export function AllSkyAtlas({ clock }: { clock: AnimationClock }) {
           className="absolute inset-0"
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
         />
-        <div ref={sizeRef} className="pointer-events-none absolute inset-0" />
 
-        {/* Overlay: catalog markers + orbit dot */}
+        {/* Overlay: catalog markers */}
         <div
           ref={overlayRef}
           className="pointer-events-none absolute inset-0 z-[3]"
           style={{ opacity: overlayOpacity }}
         />
-        <div
-          ref={orbitDotRef}
-          className="pointer-events-none absolute z-[4] h-2.5 w-2.5 rounded-full bg-[#9ce4ff] opacity-0 shadow-[0_0_8px_var(--color-cyan-bright)] transition-opacity duration-150"
-        />
-
-        <button
-          className={`absolute z-[6] cursor-pointer rounded-[3px] border px-2.5 py-1 text-[10px] transition-all duration-200 ${
-            orbitAnimActive
-              ? "border-cyan-bright bg-[rgba(25,44,62,0.95)] text-cyan-bright shadow-[0_0_10px_rgba(94,169,209,0.28)]"
-              : "border-[#364e66] bg-[rgba(19,28,38,0.9)] text-[#c7d6e6] hover:border-cyan-bright hover:text-cyan-bright"
-          }`}
-          style={{ left: btnLeft, top: btnTop, bottom: narrow ? "12px" : undefined }}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleOrbitAnimation();
-          }}
-        >
-          Orbit animation
-        </button>
 
         {/* Tile-stream degraded notice (atlas itself stays usable) */}
         {tilesOffline && status === "ready" && (
